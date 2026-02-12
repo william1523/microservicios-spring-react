@@ -1,0 +1,34 @@
+-- 1. Definir el contexto de la aplicación
+CREATE OR REPLACE CONTEXT KARDEX_CTX USING KARDEX_OWNER.PKG_SEGURIDAD_KARDEX;
+
+-- 2. Paquete de Seguridad (Header y Body)
+CREATE OR REPLACE PACKAGE KARDEX_OWNER.PKG_SEGURIDAD_KARDEX AS
+    PROCEDURE SET_EMPRESA_CONTEXT (p_username IN VARCHAR2);
+    FUNCTION GET_EMPRESA_ID RETURN NUMBER;
+END PKG_SEGURIDAD_KARDEX;
+/
+-- [El cuerpo del paquete va aquí, idéntico al consolidado]
+
+-- 3. Función de Política (Genera la cláusula WHERE)
+CREATE OR REPLACE FUNCTION KARDEX_OWNER.FNC_POLITICA_EMPRESA (
+    p_schema IN VARCHAR2, p_table IN VARCHAR2
+) RETURN VARCHAR2
+IS
+    v_empresa_id NUMBER(10) := KARDEX_OWNER.PKG_SEGURIDAD_KARDEX.GET_EMPRESA_ID;
+BEGIN
+    IF v_empresa_id IS NULL THEN
+        RETURN NULL; -- Súper Administrador
+    ELSE
+        RETURN 'EMPRESA_ID = ' || TO_CHAR(v_empresa_id); 
+    END IF;
+END FNC_POLITICA_EMPRESA;
+/
+
+-- 4. Aplicación de la Política (VPD)
+BEGIN
+  DBMS_RLS.ADD_POLICY (object_schema => 'KARDEX_OWNER', object_name => 'PRODUCTOS', policy_name => 'POL_PRODUCTOS', policy_function => 'FNC_POLITICA_EMPRESA', statement_types => 'SELECT, INSERT, UPDATE, DELETE');
+  DBMS_RLS.ADD_POLICY (object_schema => 'KARDEX_OWNER', object_name => 'TERCEROS', policy_name => 'POL_TERCEROS', policy_function => 'FNC_POLITICA_EMPRESA', statement_types => 'SELECT, INSERT, UPDATE, DELETE');
+  DBMS_RLS.ADD_POLICY (object_schema => 'KARDEX_OWNER', object_name => 'SUCURSALES', policy_name => 'POL_SUCURSALES', policy_function => 'FNC_POLITICA_EMPRESA', statement_types => 'SELECT, INSERT, UPDATE, DELETE');
+  DBMS_RLS.ADD_POLICY (object_schema => 'KARDEX_OWNER', object_name => 'DOCUMENTOS_VENTA', policy_name => 'POL_DOC_VENTA', policy_function => 'FNC_POLITICA_EMPRESA', statement_types => 'SELECT, INSERT, UPDATE, DELETE');
+END;
+/

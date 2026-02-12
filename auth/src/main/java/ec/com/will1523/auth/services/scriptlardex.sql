@@ -1,0 +1,186 @@
+-- ***********************************************
+-- 1. Tablas de Configuración Base
+-- ***********************************************
+
+CREATE TABLE METODOS_VALORACION (
+    ID_METODO         NUMBER(10) PRIMARY KEY,
+    NOMBRE_METODO     VARCHAR2(50) NOT NULL, -- Ej: 'Promedio Ponderado', 'FIFO'
+    DESCRIPCION       VARCHAR2(255)
+);
+
+CREATE TABLE SRI_ESTADOS (
+    ID_ESTADO         NUMBER(10) PRIMARY KEY,
+    DESCRIPCION       VARCHAR2(50) NOT NULL -- Ej: 'Autorizado', 'Rechazado', 'Pendiente'
+);
+
+CREATE TABLE USUARIOS (
+    ID_USUARIO        NUMBER(10) PRIMARY KEY,
+    NOMBRE            VARCHAR2(100) NOT NULL,
+    ROL               VARCHAR2(50) NOT NULL, -- 'Vendedor', 'Bodega', 'Contador'
+    CONSTRAINT CHK_ROL CHECK (ROL IN ('Vendedor', 'Bodega', 'Contador'))
+);
+
+-- ***********************************************
+-- 2. Inventario y Productos (HU-01, HU-05, HU-10)
+-- ***********************************************
+
+CREATE TABLE PRODUCTOS (
+    ID_PRODUCTO             NUMBER(10) PRIMARY KEY,
+    CODIGO_SKU              VARCHAR2(50) NOT NULL UNIQUE,
+    NOMBRE                  VARCHAR2(200) NOT NULL,
+    STOCK_ACTUAL            NUMBER(18, 4) DEFAULT 0 NOT NULL,
+    COSTO_UNITARIO_PROM     NUMBER(18, 4) DEFAULT 0 NOT NULL,
+    UBICACION_BODEGA        VARCHAR2(50),
+    ID_METODO_VALORACION    NUMBER(10) NOT NULL,
+    CONSTRAINT FK_PROD_METODO FOREIGN KEY (ID_METODO_VALORACION)
+        REFERENCES METODOS_VALORACION(ID_METODO)
+);
+
+-- ***********************************************
+-- 3. Adquisición y Prorrateo de Costos (HU-15)
+-- ***********************************************
+
+CREATE TABLE ORDENES_COMPRA_ADQUISICION (
+    ID_ORDEN_COMPRA     NUMBER(38) PRIMARY KEY,
+    NUMERO_DOCUMENTO    VARCHAR2(50) NOT NULL UNIQUE,
+    FECHA_RECEPCION     DATE DEFAULT SYSDATE NOT NULL,
+    VALOR_FOB_TOTAL     NUMBER(18, 2) NOT NULL,
+    MONTO_FLETES        NUMBER(18, 2) DEFAULT 0,
+    MONTO_SEGUROS       NUMBER(18, 2) DEFAULT 0,
+    MONTO_ADUANA        NUMBER(18, 2) DEFAULT 0,
+    TOTAL_GASTOS        NUMBER(18, 2) NOT NULL,
+    FACTOR_PRORRATEO    NUMBER(18, 6) DEFAULT 0
+);
+
+-- ***********************************************
+-- 4. Kardex y Movimientos de Costo (HU-12, HU-17)
+-- ***********************************************
+
+CREATE TABLE KARDEX_MOVIMIENTOS (
+    ID_KARDEX               NUMBER(38) PRIMARY KEY,
+    ID_PRODUCTO             NUMBER(10) NOT NULL,
+    FECHA_MOV               DATE DEFAULT SYSDATE NOT NULL,
+    TIPO_MOVIMIENTO         CHAR(1) NOT NULL, -- 'E' (Entrada), 'S' (Salida)
+    DOCUMENTO_ORIGEN        VARCHAR2(50),
+    CANTIDAD                NUMBER(18, 4) NOT NULL,
+    COSTO_UNITARIO_HIST     NUMBER(18, 4) NOT NULL,
+    COSTO_BASE_UNIDAD       NUMBER(18, 4),
+    COSTO_ADICIONAL_UNIDAD  NUMBER(18, 4),
+    VALOR_TOTAL_MOV         NUMBER(18, 2) NOT NULL,
+    ASIENTO_CONTABLE_ID     VARCHAR2(50),
+    ID_ORDEN_COMPRA         NUMBER(38),
+
+    CONSTRAINT CHK_TIPO_MOV CHECK (TIPO_MOVIMIENTO IN ('E', 'S')),
+    CONSTRAINT FK_KARDEX_PROD FOREIGN KEY (ID_PRODUCTO)
+        REFERENCES PRODUCTOS(ID_PRODUCTO),
+    CONSTRAINT FK_KARDEX_ORDEN_COMPRA FOREIGN KEY (ID_ORDEN_COMPRA)
+        REFERENCES ORDENES_COMPRA_ADQUISICION(ID_ORDEN_COMPRA)
+);
+
+-- ***********************************************
+-- 5. Facturación y SRI (HU-09)
+-- ***********************************************
+
+CREATE TABLE FACTURAS (
+    ID_FACTURA              NUMBER(38) PRIMARY KEY,
+    CLAVE_ACCESO_SRI        VARCHAR2(49) UNIQUE,
+    FECHA_EMISION           DATE DEFAULT SYSDATE NOT NULL,
+    SISTEMA_ORIGEN_ID       VARCHAR2(50),
+    ID_VENDEDOR             NUMBER(10),
+    ID_ESTADO_SRI           NUMBER(10) NOT NULL,
+    SUBTOTAL_IVA            NUMBER(18, 2) NOT NULL,
+    TOTAL_FINAL             NUMBER(18, 2) NOT NULL,
+
+    CONSTRAINT FK_FACT_ESTADO FOREIGN KEY (ID_ESTADO_SRI)
+        REFERENCES SRI_ESTADOS(ID_ESTADO),
+    CONSTRAINT FK_FACT_VENDEDOR FOREIGN KEY (ID_VENDEDOR)
+        REFERENCES USUARIOS(ID_USUARIO)
+);
+
+-- ***********************************************
+-- 6. Contabilidad (Plan de Cuentas y Mapeo) (HU-18, HU-19)
+-- ***********************************************
+
+CREATE TABLE PLAN_CUENTAS (
+    ID_PLAN_CUENTA      NUMBER(10) PRIMARY KEY,
+    CODIGO_CUENTA       VARCHAR2(20) NOT NULL UNIQUE,
+    DESCRIPCION_CUENTA  VARCHAR2(255) NOT NULL,
+    ID_CUENTA_SUPERIOR  NUMBER(10),
+
+    CONSTRAINT FK_CUENTA_SUPERIOR FOREIGN KEY (ID_CUENTA_SUPERIOR)
+        REFERENCES PLAN_CUENTAS(ID_PLAN_CUENTA)
+);
+
+CREATE TABLE MAPEO_CONTABLE (
+    ID_MAPEO                NUMBER(10) PRIMARY KEY,
+    TIPO_TRANSACCION        VARCHAR2(50) NOT NULL UNIQUE,
+    ID_CUENTA_DEBE          NUMBER(10) NOT NULL,
+    ID_CUENTA_HABER         NUMBER(10) NOT NULL,
+
+    CONSTRAINT FK_MAPEO_DEBE FOREIGN KEY (ID_CUENTA_DEBE)
+        REFERENCES PLAN_CUENTAS(ID_PLAN_CUENTA),
+    CONSTRAINT FK_MAPEO_HABER FOREIGN KEY (ID_CUENTA_HABER)
+        REFERENCES PLAN_CUENTAS(ID_PLAN_CUENTA)
+);
+
+-- Índices para optimizar búsquedas frecuentes
+CREATE INDEX IDX_KARDEX_PROD ON KARDEX_MOVIMIENTOS (ID_PRODUCTO);
+CREATE INDEX IDX_FACT_CLAVE ON FACTURAS (CLAVE_ACCESO_SRI);
+
+
+-- ***********************************************
+-- 7. Tablas de Catálogo de Aplicaciones (HU-22)
+-- ***********************************************
+
+-- Tabla de Marcas de Vehículo
+CREATE TABLE MARCAS_VEHICULO (
+    ID_MARCA          NUMBER(10) PRIMARY KEY,
+    NOMBRE_MARCA      VARCHAR2(100) NOT NULL UNIQUE
+);
+
+-- Tabla de Modelos de Vehículo
+CREATE TABLE MODELOS_VEHICULO (
+    ID_MODELO         NUMBER(10) PRIMARY KEY,
+    ID_MARCA          NUMBER(10) NOT NULL,
+    NOMBRE_MODELO     VARCHAR2(100) NOT NULL,
+
+    CONSTRAINT FK_MODELO_MARCA FOREIGN KEY (ID_MARCA)
+        REFERENCES MARCAS_VEHICULO(ID_MARCA)
+);
+
+-- Tabla de Años/Versiones
+CREATE TABLE APLICACIONES_VEHICULO (
+    ID_APLICACION     NUMBER(10) PRIMARY KEY,
+    ID_MODELO         NUMBER(10) NOT NULL,
+    ANIO_INICIO       NUMBER(4) NOT NULL,
+    ANIO_FIN          NUMBER(4) NOT NULL,
+    VERSION_MOTOR     VARCHAR2(100), -- Ej: 2.0L Turbo
+
+    CONSTRAINT FK_APLICACION_MODELO FOREIGN KEY (ID_MODELO)
+        REFERENCES MODELOS_VEHICULO(ID_MODELO)
+);
+
+
+-- ***********************************************
+-- 8. Tabla de Relación Producto-Aplicación (HU-21)
+-- ***********************************************
+
+CREATE TABLE PRODUCTOS_APLICACIONES (
+    ID_PRODUCTO_APL   NUMBER(38) PRIMARY KEY,
+    ID_PRODUCTO       NUMBER(10) NOT NULL,
+    ID_APLICACION     NUMBER(10) NOT NULL,
+
+    -- Restricción para evitar duplicados: un producto solo se aplica una vez a una aplicación
+    CONSTRAINT UQ_PROD_APL UNIQUE (ID_PRODUCTO, ID_APLICACION),
+
+    -- Relaciones Foráneas
+    CONSTRAINT FK_PA_PRODUCTO FOREIGN KEY (ID_PRODUCTO)
+        REFERENCES PRODUCTOS(ID_PRODUCTO),
+    CONSTRAINT FK_PA_APLICACION FOREIGN KEY (ID_APLICACION)
+        REFERENCES APLICACIONES_VEHICULO(ID_APLICACION)
+);
+
+-- Índice para optimizar la búsqueda inversa (HU-23)
+CREATE INDEX IDX_PA_APLICACION ON PRODUCTOS_APLICACIONES (ID_APLICACION);
+
+

@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  app:
+    build: ../login
+    container_name: login-app
+    ports:
+      - "8081:8080"
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo:27017/login_db
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - login-network
+
+  gateway:
+    build:
+      context: ../api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - app
+    networks:
+      - login-network
+
+  mongo:
+    image: mongo:latest
+    container_name: login-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - login-network
+
+  redis:
+    image: redis:latest
+    container_name: login-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - login-network
+
+  frontend:
+    build:
+      context: ../frontend-app
+      dockerfile: Dockerfile
+    container_name: frontend-app
+    ports:
+      - "3000:80"
+    depends_on:
+      - gateway
+    networks:
+      - login-network
+
+networks:
+  login-network:
+    driver: bridge
+
+volumes:
+  mongo-data:

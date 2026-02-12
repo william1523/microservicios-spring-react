@@ -1,0 +1,23 @@
+# Java
+target/
+*.class
+*.jar
+*.war
+*.ear
+.mvn/
+
+# Node
+node_modules/
+dist/
+build/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Brain
+.gemini/
+brain/
