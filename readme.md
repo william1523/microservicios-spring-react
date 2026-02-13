@@ -44,6 +44,7 @@ El **API Gateway** expone el acceso a los servicios internos a través del puert
 ## 3. Modo de Despliegue
 
 La infraestructura está totalmente dockerizada para facilitar el despliegue.
+Dentro del directorio Docker ejecutar: docker compose up --build
 
 ### Prerrequisitos
 - Docker y Docker Compose instalados.
